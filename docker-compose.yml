@@ -1,21 +1,17 @@
+version: '3.8'
 services:
-  postgres:
-    image: postgres:17
-    container_name: railcore-postgres
-    restart: unless-stopped
+  db:
+    image: mysql:8.0
+    container_name: railcore-db
+    restart: always
     environment:
-      POSTGRES_USER: railcore
-      POSTGRES_PASSWORD: railcore_local_password
-      POSTGRES_DB: railcore_db
+      MYSQL_DATABASE: railcore
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: railcoreuser
+      MYSQL_PASSWORD: railcorepass
     ports:
-      - "5433:5432"
+      - "3306:3306"
     volumes:
-      - railcore_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U railcore -d railcore_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
+      - db_data:/var/lib/mysql
 volumes:
-  railcore_postgres_data:
+  db_data:
