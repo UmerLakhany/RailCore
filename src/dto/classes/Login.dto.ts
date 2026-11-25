@@ -1,13 +1,12 @@
-import { IsString, IsEmail, IsNotEmpty } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export default class LoginDTO {
-
   @IsNotEmpty()
-  @IsEmail()
+  @IsEmail({}, { message: 'email must be a valid email address' })
   email!: string;
 
   @IsNotEmpty()
   @IsString()
+  @MaxLength(72)
   password!: string;
-
 }

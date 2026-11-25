@@ -1,147 +1,88 @@
 import { DataTypes, Model } from 'sequelize';
 import SequelizeClass from '../../settings/orm/sequelize';
-import { UsersAttributes } from './interfaces';
-const sequelize = SequelizeClass.getInstance().sequelize;
+import { PublicUser, USER_ROLES, UserAttributes, UserCreationAttributes } from './interfaces';
 
-class User extends Model<UsersAttributes> { }
+const { sequelize } = SequelizeClass.getInstance();
 
-User.init({
-  id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true
-  },
-  firstName: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  lastName: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  country: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  language: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  timezone: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  nickname: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  gender: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  type: {
-    type: DataTypes.ENUM('CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN'),
-    allowNull: false
-  },
-  cnic: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
+class User extends Model<UserAttributes, UserCreationAttributes> {
+  declare id: string;
+  declare firstName: string;
+  declare lastName: string | null;
+  declare email: string;
+  declare phoneNumber: string | null;
+  declare password: string;
+  declare role: UserAttributes['role'];
+  declare isEmailVerified: boolean;
+  declare isActive: boolean;
+  declare lastLoginAt: Date | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
+  declare readonly deletedAt: Date | null;
 
-  email: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  password: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  countryCode: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  phoneNumber: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  profilePic: {
-    type: DataTypes.STRING,
-  },
-  roleType: {
-    type: DataTypes.ENUM('ADMIN', 'CUSTOMER', 'VENDOR', 'RIDER'),
-    allowNull: true
-  },
-  // For face/photo verification and documents
-  facePhoto: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  idDocumentPhoto: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  documentType: {
-    type: DataTypes.ENUM('GhanaCard', 'Passport', 'NationalID'),
-    allowNull: true,
-  },
-  walletBalance: {
-    type: DataTypes.DECIMAL(12,2),
-    allowNull: true,
-    defaultValue: 0.00,
-  },
-  firstPageVisited: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    defaultValue: 'dashboard',
-  },
-  status: {
-    type: DataTypes.ENUM('Approved', 'Rejected', 'Pending'),
-    defaultValue: 'Pending',
-    allowNull: true
-  },
-  isActive: {
-    type: DataTypes.BOOLEAN,
-    allowNull: false,
-    defaultValue: false,
-  },
-  isEmailVerify: {
-    type: DataTypes.BOOLEAN,
-    allowNull: false,
-    defaultValue: false,
-  },
-  rejectionReason: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  createdBy: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-  },
-  updatedBy: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-  },
-  isDeleted: {
-    type: DataTypes.BOOLEAN,
-    allowNull: false,
-    defaultValue: false,
-  },
-  deletedBy: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-  },
-  deletedAt: {
-    type: DataTypes.DATE,
-  },
-}, {
-  sequelize,
-  tableName: 'users',
-  indexes: [
-    {
+  toPublic(): PublicUser {
+    const { password, deletedAt, ...rest } = this.get({ plain: true });
+    return rest;
+  }
+}
+
+User.init(
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    firstName: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+    },
+    lastName: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+    email: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
       unique: true,
-      fields: ['email'],
-    }
-  ]
-});
+      set(value: string) {
+        this.setDataValue('email', value.trim().toLowerCase());
+      },
+    },
+    phoneNumber: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+    },
+    password: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    role: {
+      type: DataTypes.ENUM(...USER_ROLES),
+      allowNull: false,
+      defaultValue: 'PASSENGER',
+    },
+    isEmailVerified: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    },
+    lastLoginAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'users',
+    timestamps: true,
+    paranoid: true, // soft delete via deletedAt
+    indexes: [{ fields: ['role'] }],
+  },
+);
 
 export default User;

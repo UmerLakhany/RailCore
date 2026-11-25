@@ -1,20 +1,25 @@
-# Use the official Node.js image as the base
-FROM node:18
-
-# Set the working directory
+# ---- build stage ----
+FROM node:20-alpine AS build
 WORKDIR /app
 
-# Copy package.json and package-lock.json
 COPY package*.json ./
+RUN npm ci
 
-# Install dependencies
-RUN npm install
+COPY tsconfig.json ./
+COPY settings ./settings
+COPY src ./src
+RUN npm run build
 
-# Copy the rest of the application code
-COPY . .
+# ---- runtime stage ----
+FROM node:20-alpine
+WORKDIR /app
+ENV NODE_ENV=production
 
-# Expose the app port (change if needed)
-EXPOSE 3000
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Start the app
-CMD ["npm", "run", "dev"]
+COPY --from=build /app/dist ./dist
+
+USER node
+EXPOSE 5001
+CMD ["node", "dist/src/index.js"]

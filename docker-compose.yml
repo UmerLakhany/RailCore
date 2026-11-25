@@ -1,17 +1,41 @@
-version: '3.8'
 services:
   db:
-    image: mysql:8.0
+    image: postgres:16-alpine
     container_name: railcore-db
-    restart: always
+    restart: unless-stopped
     environment:
-      MYSQL_DATABASE: railcore
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_USER: railcoreuser
-      MYSQL_PASSWORD: railcorepass
+      POSTGRES_DB: ${POSTGRES_DB:-railcore}
+      POSTGRES_USER: ${POSTGRES_USER:-railcore}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-railcore}
     ports:
-      - "3306:3306"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - db_data:/var/lib/mysql
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    container_name: railcore-api
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 5001
+      # Inside the compose network the database host is the service name "db".
+      DB_URL: postgres://${POSTGRES_USER:-railcore}:${POSTGRES_PASSWORD:-railcore}@db:5432/${POSTGRES_DB:-railcore}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_EXPIRY: ${JWT_EXPIRY:-15m}
+    ports:
+      - "${PORT:-5001}:5001"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   db_data:
