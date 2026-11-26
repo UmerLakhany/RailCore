@@ -1,7 +1,7 @@
 {
   "welcome": {
-    "subject": "Welcome to RailCore!",
-    "template": "Hey {{name}} Welcome to RailCore. \n  here's your OTP code {{otp}}"
+    "subject": "Welcome to ZongoBite!",
+    "template": "Hey {{name}} Welcome to ZongoBite. \n  here's your OTP code {{otp}}"
   },
   "passwordReset": {
     "subject": "Reset Your Password",

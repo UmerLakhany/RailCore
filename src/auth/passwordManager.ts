@@ -1,19 +1,17 @@
-import bcrypt from 'bcryptjs';
+const bcrypt = require('bcryptjs');
 
 class PasswordManager {
-  private static readonly saltRounds = 12;
 
-  static hash(password: string): Promise<string> {
-    return bcrypt.hash(password, PasswordManager.saltRounds);
+  private readonly saltRounds: number = 10
+
+  async encryptPassword(password: string): Promise<string> {
+    return await bcrypt.hash(password, this.saltRounds);
   }
 
-  static hashSync(password: string): string {
-    return bcrypt.hashSync(password, PasswordManager.saltRounds);
+  async comparePassword(encryptedPassword: string, inputPass: string): Promise<string> {
+    return await bcrypt.compare(inputPass, encryptedPassword);
   }
 
-  static compare(plainPassword: string, hash: string): Promise<boolean> {
-    return bcrypt.compare(plainPassword, hash);
-  }
 }
 
 export default PasswordManager;

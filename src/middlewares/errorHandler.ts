@@ -1,49 +1,61 @@
 import { Request, Response, NextFunction } from 'express';
 import { ForeignKeyConstraintError, UniqueConstraintError, ValidationError } from 'sequelize';
-import APIResponse from '../lib/classes/APIResponse';
 
-/** Throw this from services for expected (non-500) failures. */
+const getSatusCode = (error: any) => {
+  const sequelizeErrorNames = ["SequelizeValidationError", "SequelizeUniqueConstraintError"]
+
+  return error.statusCode || sequelizeErrorNames.includes(error.name) ? 400 : 500;
+}
+
 export class ErrorResponse extends Error {
   public statusCode: number;
 
-  constructor(message: string, statusCode: number = 400) {
+  constructor(message: string, statusCode: number = 404) {
     super(message);
-    this.name = 'ErrorResponse';
     this.statusCode = statusCode;
+
     Error.captureStackTrace(this, this.constructor);
   }
 }
 
-const errorHandler = (err: any, req: Request, res: Response, _next: NextFunction) => {
-  let statusCode = 500;
-  let message = 'Internal Server Error';
+interface CustomError extends Error {
+  parent?: {
+    code?: string;
+  };
+}
+const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
+  let { message } = err;
+  let statusCode = getSatusCode(err);
 
-  if (err instanceof ErrorResponse) {
-    statusCode = err.statusCode;
-    message = err.message;
+  console.log('Error', { name: err.name, parent: (err as CustomError)?.parent?.code });
+
+  res.locals.errorMessage = err.message;
+  console.log("err", err);
+  if (err instanceof ValidationError) {
+    const errors = (err as ValidationError).errors.map(error => ({ field: error.path, message: error.message }));
+    message = errors[0].message;
   } else if (err instanceof UniqueConstraintError) {
-    // must be checked before ValidationError (it is a subclass)
-    statusCode = 409;
-    message = 'Duplicate entry found.';
-  } else if (err instanceof ValidationError) {
-    statusCode = 400;
-    message = err.errors[0]?.message || 'Validation error';
+    message = "Duplicate entry found.";
+  } else if (err instanceof ForeignKeyConstraintError && req.method.includes('POST')) {
+    message = "Cannot create record due to wrong data provided.";
   } else if (err instanceof ForeignKeyConstraintError) {
-    statusCode = 400;
-    message = req.method === 'DELETE'
-      ? 'Cannot delete record due to dependent data.'
-      : 'Cannot save record due to invalid related data.';
-  } else if (err?.type === 'entity.parse.failed') {
-    statusCode = 400;
-    message = 'Malformed JSON body';
+    message = "Cannot delete record due to dependent data.";
+  } else if (err instanceof ErrorResponse) {
+    message = message;
+    statusCode = (err as ErrorResponse).statusCode;
+  } else if (err.name === 'SequelizeDatabaseError' && (err as CustomError)?.parent?.code === 'WARN_DATA_TRUNCATED') {
+    message = "Invalid value provided";
+  } else {
+    message = "Internal Server Error";
   }
 
-  if (statusCode >= 500) {
-    console.error(`[${req.method} ${req.originalUrl}]`, err);
-  }
+  const response = {
+    code: statusCode,
+    message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  };
 
-  const description = process.env.NODE_ENV === 'development' && statusCode >= 500 ? err?.stack : null;
-  res.status(statusCode).json(APIResponse.error(message, statusCode, null, description));
+  res.status(statusCode).send(response);
 };
 
 export default errorHandler;

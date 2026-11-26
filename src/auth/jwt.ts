@@ -1,54 +1,74 @@
-import jwt, { SignOptions } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
-import { UserRole } from '../models/interfaces';
 
-export interface AccessTokenPayload {
-  sub: string; // user id
-  email: string;
-  role: UserRole;
-  type: 'access';
-}
 
 declare module 'express-serve-static-core' {
   interface Request {
-    user?: AccessTokenPayload;
+    user?: any;
   }
-}
-
-function getSecret(): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET not defined');
-  return secret;
 }
 
 class AuthMiddleware {
-  static createAccessToken(payload: Omit<AccessTokenPayload, 'type'>): { token: string; expiresIn: string } {
-    const expiresIn = process.env.JWT_EXPIRY || '15m';
-    const token = jwt.sign({ ...payload, type: 'access' }, getSecret(), {
-      expiresIn: expiresIn as SignOptions['expiresIn'],
-    });
-    return { token, expiresIn };
-  }
 
-  /** Protects routes: requires `Authorization: Bearer <accessToken>`. */
-  static auth(req: Request, res: Response, next: NextFunction): void {
-    const header = req.headers.authorization;
-    const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : '';
-
-    if (!token) {
-      return res.generalError('Authentication required', null, 401);
-    }
-
+  static async auth(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const decoded = jwt.verify(token, getSecret()) as AccessTokenPayload;
-      if (decoded.type !== 'access') {
-        return res.generalError('Invalid token', null, 401);
+
+      let token = '';
+
+      if (req?.headers?.authorization?.startsWith('Bearer')) {
+        token = req.headers.authorization.split(' ')[1].trim()
       }
+
+      if (!token) {
+        return res.generalError("Authentication required", { error: 'Authentication required' }, 401);
+      }
+
+
+      const decoded: any = jwt.verify(token, process.env.JWT_SECRET || '')
+
       req.user = decoded;
       next();
-    } catch {
-      res.generalError('Invalid or expired token', null, 401);
+    } catch (err: any) {
+      res.generalError("Authentication required", { error: err?.message || 'Authentication required' }, 401);
     }
+  }
+
+  static authAdmin(req: Request, res: Response, next: NextFunction): void {
+    const token = req?.headers?.token || req?.cookies?.token;
+    if (!token) {
+      res.generalError("Authentication required", { error: 'Authentication required' }, 401);
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET || '', (err: any, user: any) => {
+      if (err) {
+        return res.status(401).json({ error: 'Token verification failed', detail: err });
+      }
+
+      const jwtSecret = AuthMiddleware.createJwt({
+        id: user.id,
+        email: user.email
+      })
+
+
+      delete user.password
+
+      req.user = user;
+      next();
+    });
+  }
+
+  static createJwt(payload: Record<string, any>, period: 'short' | 'defined' = 'defined'): string {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw new Error('JWT_SECRET not defined');
+
+    const defaultExpiry = '1h';
+    const expiry = period === 'short' ? '600s' : process.env.JWT_EXPIRY || defaultExpiry;
+
+    const options: jwt.SignOptions | any = expiry
+      ? { expiresIn: expiry }
+      : {};
+
+    return jwt.sign(payload, secret, options);
   }
 }
 
